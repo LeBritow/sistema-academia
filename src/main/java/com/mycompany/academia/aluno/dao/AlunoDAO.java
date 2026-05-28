@@ -31,8 +31,8 @@ public class AlunoDAO {
         }
     }
 
-    // Busca um aluno específico pelo ID
-    public Aluno buscarPorId(Long id) {
+    // Busca um aluno específico pelo ID (CORRIGIDO PARA int)
+    public Aluno buscarPorId(int id) {
         EntityManager em = JPAUtil.getEntityManager();
         try {
             return em.find(Aluno.class, id);
@@ -53,8 +53,8 @@ public class AlunoDAO {
         }
     }
 
-    // Exclui um aluno do banco
-    public void excluir(Long id) {
+    // Exclui um aluno do banco (CORRIGIDO PARA int)
+    public void excluir(int id) {
         EntityManager em = JPAUtil.getEntityManager();
         try {
             em.getTransaction().begin();
@@ -74,16 +74,16 @@ public class AlunoDAO {
     }
     
     public List<AvaliacaoFisica> buscarAvaliacoesPorAluno(int alunoId) {
-    EntityManager em = com.mycompany.academia.core.config.JPAUtil.getEntityManager();
-    try {
-        String jpql = "SELECT a FROM AvaliacaoFisica a WHERE a.aluno.id = :alunoId ORDER BY a.dataAvaliacao ASC";
-        TypedQuery<AvaliacaoFisica> query = em.createQuery(jpql, AvaliacaoFisica.class);
-        query.setParameter("alunoId", alunoId);
-        return query.getResultList();
-    } finally {
-        em.close();
+        EntityManager em = com.mycompany.academia.core.config.JPAUtil.getEntityManager();
+        try {
+            String jpql = "SELECT a FROM AvaliacaoFisica a WHERE a.aluno.id = :alunoId ORDER BY a.dataAvaliacao ASC";
+            TypedQuery<AvaliacaoFisica> query = em.createQuery(jpql, AvaliacaoFisica.class);
+            query.setParameter("alunoId", alunoId);
+            return query.getResultList();
+        } finally {
+            em.close();
+        }
     }
-}
 
     // Salva a nova avaliação garantindo que o Aluno seja reconhecido na transação atual
     public void salvarAvaliacaoFisica(com.mycompany.academia.aluno.model.AvaliacaoFisica avaliacao) {
@@ -143,8 +143,6 @@ public class AlunoDAO {
     public String buscarDataUltimoTreino(int alunoId) {
         jakarta.persistence.EntityManager em = com.mycompany.academia.core.config.JPAUtil.getEntityManager();
         try {
-            // Nota: Se a sua classe ComentarioTreino ou ItemRealizado tiver um atributo LocalDateTime chamado 'data',
-            // nós buscamos o registro mais recente (MAX). Aqui usaremos o ComentarioTreino como base:
             String jpql = "SELECT MAX(c.dataCriacao) FROM ComentarioTreino c WHERE c.treino IN (" +
                           "    SELECT pt.treino FROM ProgramacaoTreino pt WHERE pt.aluno.id = :alunoId" +
                           ")";

@@ -29,14 +29,12 @@ import java.util.List;
 
 public class ServidorMobile {
 
-    // A variável que guarda o nosso servidor para podermos "matá-lo" quando o JavaFX fechar
     private static HttpServer servidorAtual;
 
     public static void iniciar() {
         try {
             servidorAtual = HttpServer.create(new InetSocketAddress(8081), 0);
             
-            // Registrando as 5 rotas da nossa API
             servidorAtual.createContext("/api/teste", new TesteHandler());
             servidorAtual.createContext("/api/login", new LoginHandler());
             servidorAtual.createContext("/api/ficha", new BuscarFichaHandler());
@@ -52,19 +50,13 @@ public class ServidorMobile {
         }
     }
 
-    // ========================================================================
-    // MÉTODO DE DESLIGAMENTO (Chamado lá no seu App.java)
-    // ========================================================================
     public static void parar() {
         if (servidorAtual != null) {
             System.out.println("🛑 Forçando a parada do Servidor Mobile e liberando a porta 8081...");
-            servidorAtual.stop(0); // O zero significa desligamento imediato
+            servidorAtual.stop(0);
         }
     }
 
-    // ========================================================================
-    // ROTA 1: TESTE
-    // ========================================================================
     static class TesteHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
@@ -78,9 +70,6 @@ public class ServidorMobile {
         }
     }
 
-    // ========================================================================
-    // ROTA 2: LOGIN DO APLICATIVO MOBILE
-    // ========================================================================
     static class LoginHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
@@ -130,14 +119,19 @@ public class ServidorMobile {
         }
     }
 
-    // ========================================================================
-    // ROTA 3: BUSCAR A FICHA DE TREINO DO ALUNO
-    // ========================================================================
     static class BuscarFichaHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
             exchange.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
+            exchange.getResponseHeaders().add("Access-Control-Allow-Headers", "Content-Type");
+            exchange.getResponseHeaders().add("Access-Control-Allow-Methods", "GET, OPTIONS");
             exchange.getResponseHeaders().add("Content-Type", "application/json; charset=UTF-8");
+
+            // CORREÇÃO: Tratamento do OPTIONS para evitar bloqueio de CORS
+            if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(204, -1);
+                return;
+            }
 
             if ("GET".equalsIgnoreCase(exchange.getRequestMethod())) {
                 try {
@@ -162,7 +156,7 @@ public class ServidorMobile {
                     List<ItemTreino> itens = dao.listarItensPorTreino(treino.getId());
                     
                     JsonObject respostaJson = new JsonObject();
-                    respostaJson.addProperty("idFicha", treino.getId()); // Envia o ID real do Treino
+                    respostaJson.addProperty("idFicha", treino.getId());
                     respostaJson.addProperty("nomeTreino", treino.getNome());
                     respostaJson.addProperty("objetivo", treino.getObjetivo());
                     
@@ -197,9 +191,6 @@ public class ServidorMobile {
         }
     }
 
-    // ========================================================================
-    // ROTA 4: FINALIZAR TREINO (SALVANDO SESSÃO, CARGAS E COMENTÁRIO)
-    // ========================================================================
     static class FinalizarTreinoHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
@@ -233,7 +224,6 @@ public class ServidorMobile {
 
                     em.getTransaction().begin();
 
-                    // 1. Encontrar a ProgramacaoTreino atual do aluno
                     String jpqlProg = "SELECT p FROM ProgramacaoTreino p WHERE p.aluno.id = :aId AND p.treino.id = :tId";
                     List<ProgramacaoTreino> progs = em.createQuery(jpqlProg, ProgramacaoTreino.class)
                                                       .setParameter("aId", alunoId)
@@ -243,14 +233,12 @@ public class ServidorMobile {
                     if (!progs.isEmpty()) {
                         ProgramacaoTreino prog = progs.get(0);
                         
-                        // 2. Salvar a Sessão de Treino
                         com.mycompany.academia.core.session.SessaoTreino sessao = new com.mycompany.academia.core.session.SessaoTreino();
                         sessao.setProgramacaoTreino(prog);
                         sessao.setData(LocalDateTime.now());
                         sessao.setConcluido(true);
                         em.persist(sessao);
 
-                        // 3. Varrer o JSON para salvar os Itens Realizados (Cargas)
                         if (corpoRequisicao.has("itensRealizados")) {
                             JsonArray itensArray = corpoRequisicao.get("itensRealizados").getAsJsonArray();
                             for (int i = 0; i < itensArray.size(); i++) {
@@ -281,7 +269,6 @@ public class ServidorMobile {
                         }
                     }
 
-                    // 4. Salvar o Feedback/Comentário
                     ComentarioTreino novoComentario = new ComentarioTreino();
                     novoComentario.setAluno(aluno);
                     novoComentario.setTreino(treino);
@@ -300,7 +287,7 @@ public class ServidorMobile {
                 } catch (Exception e) {
                     if (em.getTransaction().isActive()) em.getTransaction().rollback();
                     enviarResposta(exchange, 500, "{\"status\":\"erro\",\"mensagem\":\"Erro ao salvar o treino: " + e.getMessage() + "\"}");
-                    e.printStackTrace(); // Bom manter aqui no log do NetBeans se der erro
+                    e.printStackTrace(); 
                 } finally {
                     em.close();
                 }
@@ -310,14 +297,19 @@ public class ServidorMobile {
         }
     }
 
-    // ========================================================================
-    // ROTA 5: LISTAR TODOS OS EXERCÍCIOS
-    // ========================================================================
     static class ListarExerciciosHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
             exchange.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
+            exchange.getResponseHeaders().add("Access-Control-Allow-Headers", "Content-Type");
+            exchange.getResponseHeaders().add("Access-Control-Allow-Methods", "GET, OPTIONS");
             exchange.getResponseHeaders().add("Content-Type", "application/json; charset=UTF-8");
+
+            // CORREÇÃO: Tratamento do OPTIONS para evitar bloqueio de CORS
+            if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(204, -1);
+                return;
+            }
 
             if ("GET".equalsIgnoreCase(exchange.getRequestMethod())) {
                 try {
@@ -343,9 +335,6 @@ public class ServidorMobile {
         }
     }
 
-    // ========================================================================
-    // FUNÇÃO AUXILIAR PARA ENVIAR A RESPOSTA RAPIDAMENTE
-    // ========================================================================
     private static void enviarResposta(HttpExchange exchange, int statusCode, String resposta) throws IOException {
         byte[] bytes = resposta.getBytes(StandardCharsets.UTF_8);
         exchange.sendResponseHeaders(statusCode, bytes.length);

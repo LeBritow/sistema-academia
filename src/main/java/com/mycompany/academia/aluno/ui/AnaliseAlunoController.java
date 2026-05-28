@@ -160,12 +160,9 @@ public class AnaliseAlunoController {
         renderizarGraficoPesoImcReal(aluno);
         gerarAlertas(aluno);
         
-        // ====================================================================
         // ATUALIZAÇÃO DO STATUS DE LEITURA
-        // ====================================================================
         treinoDAO.marcarComentariosComoLidos(aluno.getId()); // Zera as pendências no banco
         
-        listaComentarios.getItems().clear();
         listaComentarios.getItems().clear();
         List<com.mycompany.academia.treino.model.ComentarioTreino> feedbacksReais = treinoDAO.buscarComentariosPorAluno(aluno.getId());
         listaComentarios.setItems(FXCollections.observableArrayList(feedbacksReais));
@@ -198,9 +195,6 @@ public class AnaliseAlunoController {
         }
     }
 
-    // =================================================================
-    // GRÁFICO 1: PESO + IMC REAL DO BANCO DE DADOS
-    // =================================================================
     private void renderizarGraficoPesoImcReal(Aluno aluno) {
         graficoEvolucao.getData().clear();
         ((CategoryAxis) graficoEvolucao.getXAxis()).getCategories().clear(); 
@@ -221,9 +215,6 @@ public class AnaliseAlunoController {
             seriesImc.getData().add(new XYChart.Data<>(dataEixoX, avaliacao.getImc()));
         }
 
-        // ====================================================================
-        // UPDATED: Só plota o ponto inicial se o aluno possuir peso (Evita o bug pós-exclusão)
-        // ====================================================================
         if (historico.isEmpty() && aluno.getPeso() > 0) {
             String hoje = LocalDate.now().format(formatador);
             seriesPeso.getData().add(new XYChart.Data<>(hoje, aluno.getPeso()));
@@ -232,17 +223,12 @@ public class AnaliseAlunoController {
             configurarTooltips(seriesPeso, " kg");
             configurarTooltips(seriesImc, " IMC");
         } else if (!historico.isEmpty()) {
-            // Se tem histórico real, adiciona normalmente
             graficoEvolucao.getData().addAll(seriesPeso, seriesImc);
             configurarTooltips(seriesPeso, " kg");
             configurarTooltips(seriesImc, " IMC");
         }
-        // Se cair no else (historico vazio e peso 0), o gráfico não recebe nada e fica limpo!
     }
 
-    // =================================================================
-    // GRÁFICO 2: PROGRESSÃO DE CARGA POR EXERCÍCIO SELECIONADO
-    // =================================================================
     private void renderizarGraficoCargaExercicios(Aluno aluno, String nomeExercicio) {
         graficoCargas.getData().clear();
         ((CategoryAxis) graficoCargas.getXAxis()).getCategories().clear();
@@ -250,7 +236,6 @@ public class AnaliseAlunoController {
         XYChart.Series<String, Number> seriesCarga = new XYChart.Series<>();
         seriesCarga.setName("Carga Máxima (kg) - " + nomeExercicio);
 
-        // Busca o histórico real extraído das submissões mobile
         List<com.mycompany.academia.treino.model.ItemRealizado> historico = treinoDAO.buscarHistoricoCargas(aluno.getId(), nomeExercicio);
         java.time.format.DateTimeFormatter formatador = java.time.format.DateTimeFormatter.ofPattern("dd/MM");
 
@@ -283,15 +268,13 @@ public class AnaliseAlunoController {
         dialog.setTitle("Gerenciamento de Avaliações Físicas");
         dialog.setHeaderText("Métricas Corporais - " + alunoSelecionado.getNome().split(" ")[0]);
 
-        // Criamos os 3 botões (O Excluir fica alinhado à esquerda)
         ButtonType btnSalvar = new ButtonType("Salvar", ButtonBar.ButtonData.OK_DONE);
         ButtonType btnExcluir = new ButtonType("Excluir", ButtonBar.ButtonData.LEFT);
         dialog.getDialogPane().getButtonTypes().addAll(btnExcluir, btnSalvar, ButtonType.CANCEL);
 
-        // Ocultamos o botão Excluir por padrão (ele só vai aparecer se o modo for "Editar")
         Node botaoExcluir = dialog.getDialogPane().lookupButton(btnExcluir);
         botaoExcluir.setVisible(false);
-        botaoExcluir.setStyle("-fx-base: #e74c3c; -fx-text-fill: white;"); // Deixa ele vermelho!
+        botaoExcluir.setStyle("-fx-base: #e74c3c; -fx-text-fill: white;");
 
         GridPane grid = new GridPane();
         grid.setHgap(10);
@@ -317,7 +300,6 @@ public class AnaliseAlunoController {
         TextField txtAltura = new TextField(String.valueOf(alunoSelecionado.getAltura()));
         DatePicker pickerData = new DatePicker(LocalDate.now());
 
-        // TRAVA DO CALENDÁRIO: Desabilita qualquer dia que seja maior que hoje
         pickerData.setDayCellFactory(picker -> new DateCell() {
             @Override
             public void updateItem(LocalDate date, boolean empty) {
@@ -331,7 +313,7 @@ public class AnaliseAlunoController {
             boolean modoEdicao = novo.equals("Editar Lançamento Anterior");
             comboAvaliacoesAnteriores.setDisable(!modoEdicao);
             pickerData.setDisable(modoEdicao); 
-            botaoExcluir.setVisible(modoEdicao); // O botão de apagar acende aqui!
+            botaoExcluir.setVisible(modoEdicao);
         });
 
         comboAvaliacoesAnteriores.getSelectionModel().selectedItemProperty().addListener((obs, antigo, selec) -> {
@@ -370,9 +352,6 @@ public class AnaliseAlunoController {
                         alunoSelecionado.setAltura(ultima.getAltura());
                         alunoSelecionado.setImc(ultima.getImc());
                     } else {
-                        // ====================================================
-                        // NOVO: Se apagou a última medida do banco, zera o modelo
-                        // ====================================================
                         alunoSelecionado.setPeso(0);
                         alunoSelecionado.setAltura(0);
                         alunoSelecionado.setImc(0);
@@ -387,12 +366,18 @@ public class AnaliseAlunoController {
                 if (resposta == btnSalvar) {
                     float novoPeso = Float.parseFloat(txtPeso.getText());
                     float novaAltura = Float.parseFloat(txtAltura.getText());
+                    
+                    // CORREÇÃO: Prevenir divisão por zero ou negativa
+                    if (novaAltura <= 0) {
+                        throw new IllegalArgumentException("A altura deve ser maior que zero para calcular o IMC.");
+                    }
+                    
                     float novoImc = novoPeso / (novaAltura * novaAltura);
                     
                     if (comboModo.getValue().equals("Nova Avaliação")) {
                         LocalDate dataAvaliacao = pickerData.getValue();
                         if (dataAvaliacao == null) throw new IllegalArgumentException("A data não pode estar vazia.");
-                        if (dataAvaliacao.isAfter(LocalDate.now())) throw new IllegalArgumentException("Você não pode registrar uma avaliação no futuro."); // Dupla checagem de segurança
+                        if (dataAvaliacao.isAfter(LocalDate.now())) throw new IllegalArgumentException("Você não pode registrar uma avaliação no futuro.");
 
                         AvaliacaoFisica nova = new AvaliacaoFisica(alunoSelecionado, novoPeso, novaAltura, novoImc, dataAvaliacao);
                         alunoDAO.salvarAvaliacaoFisica(nova);
@@ -430,7 +415,6 @@ public class AnaliseAlunoController {
             Parent root = loader.load();
 
             DetalhesTreinoRealizadoController controller = loader.getController();
-            // É nesta linha abaixo que o sistema processa os cálculos de carga e histórico
             controller.carregarDadosReais(comentario); 
 
             Stage modal = new Stage();
@@ -440,22 +424,17 @@ public class AnaliseAlunoController {
             modal.initModality(Modality.APPLICATION_MODAL); 
             modal.showAndWait();
             
-            // Força a atualização da lista após fechar a janela
             if (alunoSelecionado != null) {
                 mostrarDetalhesAluno(alunoSelecionado);
             }
         } catch (Exception e) {
-            // =================================================================
-            // MODO INVESTIGAÇÃO: Força o erro oculto a aparecer na tela!
-            // =================================================================
             System.err.println("Erro crítico capturado ao tentar abrir o modal:");
-            e.printStackTrace(); // Imprime o rastro no console do NetBeans
+            e.printStackTrace(); 
             
             Alert alert = new Alert(Alert.AlertType.ERROR);
             alert.setTitle("Modo Investigação - Bug Capturado");
             alert.setHeaderText("Um erro oculto impediu a tela de abrir!");
             
-            // Pega a mensagem exata de erro que o Java tentou esconder
             String causa = e.getCause() != null ? e.getCause().toString() : e.toString();
             alert.setContentText("Motivo da falha:\n" + causa + "\n\nOlhe o console (Output) do NetBeans para ver a linha exata do código onde isso quebrou.");
             alert.showAndWait();
@@ -481,27 +460,5 @@ public class AnaliseAlunoController {
         etiqueta.setStyle("-fx-text-fill: " + corTexto + "; -fx-background-color: " + corFundo + "; -fx-padding: 8px 12px; -fx-background-radius: 4px; -fx-font-weight: bold; -fx-font-size: 13px;");
         etiqueta.setMaxWidth(Double.MAX_VALUE);
         return etiqueta;
-    }
-    
-    public List<String> buscarNomesExerciciosPorAluno(Long alunoId) {
-        jakarta.persistence.EntityManager em = com.mycompany.academia.core.config.JPAUtil.getEntityManager();
-        try {
-            // ATENÇÃO: A string JPQL abaixo pressupõe que o seu 'ItemTreino' tem um relacionamento com 'Exercicio' e com 'Treino', e que 'Treino' tem relacionamento com 'Aluno'.
-            // Se os nomes dos seus atributos na classe forem diferentes, basta ajustar os nomes após o JOIN.
-            String jpql = "SELECT DISTINCT e.nome FROM ItemTreino it " +
-                          "JOIN it.exercicio e " +
-                          "JOIN it.treino t " +
-                          "WHERE t.aluno.id = :alunoId";
-                          
-            jakarta.persistence.TypedQuery<String> query = em.createQuery(jpql, String.class);
-            query.setParameter("alunoId", alunoId);
-            return query.getResultList();
-        } catch (Exception e) {
-            System.err.println("Erro ao buscar exercícios do aluno: " + e.getMessage());
-            e.printStackTrace();
-            return java.util.Collections.emptyList(); // Retorna lista vazia para não quebrar a tela
-        } finally {
-            em.close();
-        }
     }
 }
